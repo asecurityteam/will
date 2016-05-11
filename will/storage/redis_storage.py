@@ -42,6 +42,25 @@ class RedisStorage(object):
     def size(self):
         return self.redis.info()["used_memory_human"]
 
+    def hget(self,name,key):
+        return self.redis.hget(name,key)
+
+    def hgetall(self,name):
+        return self.redis.hgetall(name)
+
+    def hkeys(self,name):
+        return self.redis.hkeys(name)
+
+    def hmset(self,name,mapping):
+        p = self.redis.pipeline()
+        p.hmset(name,mapping)
+        return p.execute()
+        
+    def hset (self,name,key,value):
+        p = self.redis.pipeline()
+        p.hset(name,key,value)
+        return p.execute()
+
 
 def bootstrap(settings):
     return RedisStorage(settings)

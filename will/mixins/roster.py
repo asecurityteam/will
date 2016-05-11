@@ -22,6 +22,7 @@ class RosterMixin(object):
         return None
 
     def get_user_by_jid(self, jid):
+        jid = jid.split('@')[0].split('_')[1]
         if jid in self.internal_roster:
             return self.internal_roster[jid]
 
@@ -37,11 +38,11 @@ class RosterMixin(object):
             return None
 
     def message_is_from_admin(self, message):
-        nick = self.get_user_from_message(message)['nick']
+        nick = self.get_user_from_message(message)['mention_name']
         return is_admin(nick)
 
     def message_is_allowed(self, message, acl):
-        nick = self.get_user_from_message(message)['nick']
+        nick = self.get_user_from_message(message)['mention_name']
         return is_acl_allowed(nick, acl)
 
     def get_user_by_hipchat_id(self, id):

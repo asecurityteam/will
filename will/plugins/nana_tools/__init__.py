@@ -1,0 +1,1 @@
+MODULE_DESCRIPTION = "Nana Plus plugins"

@@ -68,7 +68,7 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
 
 
     def join_rooms(self, event):
-        print "in listener:join_rooms"
+        pprint.pprint(event)
         self.update_will_roster_and_rooms()
 
         for r in self.rooms:
@@ -76,8 +76,7 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
                 self.plugin['xep_0045'].joinMUC(r["xmpp_jid"], self.nick, wait=True)
 
     def update_will_roster_and_rooms(self):
-        print "in listener:update_will_roster_and_rooms"
-        internal_roster = self.load('will_roster', {})
+        internal_roster = self.full_hipchat_user_list()
         # Loop through the connected rooms
         for roster_id in self.roster:
 
@@ -100,17 +99,17 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
 
                     # If we don't have a nick yet, pull it and mention_name off the master user list.
                     if not hasattr(internal_roster[user_id], "nick"):
-                        user_data = self.full_hipchat_user_list[hipchat_id]
-                        internal_roster[user_id].nick = user_data["mention_name"]
+                        user_data = self.get_hipchat_user(hipchat_id)
+                        try:
+                            internal_roster[user_id].nick = user_data["mention_name"]
+                        except:
+                            logging.error("user %s does not have mention_name" % hipchat_id)
+                            logging.error("%s" % user_data)
                         internal_roster[user_id].mention_name = user_data["mention_name"]
 
                     # If it's me, save that info!
                     if internal_roster[user_id]["name"] == self.nick:
                         self.me = internal_roster[user_id]
-
-        self.save("will_roster", internal_roster)
-
-        print "gonna update available rooms for update reasons"
         self.update_available_rooms()
 
     def room_message(self, msg):
@@ -133,19 +132,29 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
         return msg["from"]
 
     def _handle_message_listeners(self, msg):
-        logging.error(" " + msg['type'] + " " + msg['body'])
-        logging.error(self.handle)
-        try:
-            if self.me:
-                pass
-        except AttributeError:
-            self.join_rooms(msg)
+
+        one_on_one = False
+
+        body = msg['body'].strip()
+        print dir(msg)
+
+
+        if msg['type'] in ('chat', 'normal'):
+            one_on_one = True
+            if body[:len(self.handle) + 1].lower() == ("@%s" % self.handle).lower():
+                body = body[len(self.handle) + 1:].strip()
+                msg["body"] = body
+            msg.sender = self.get_user_from_message(msg)
+            print msg
+
+
+
 
         if (
             # I've been asked to listen to my own messages
             self.some_listeners_include_me
             # or we're in a 1 on 1 chat and I didn't send it
-            or (msg['type'] in ('chat', 'normal') and self.real_sender_jid(msg) != self.me.jid)
+            or (msg['type'] in ('chat', 'normal') and self.real_sender_jid(msg) != self.jid)
             # we're in group chat and I didn't send it
             or (msg["type"] == "groupchat" and msg['mucnick'] != self.nick)
         ):
@@ -162,6 +171,10 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
                 # Make the message object a bit friendlier
                 msg.room = self.get_room_from_message(msg)
                 msg.sender = self.get_user_from_message(msg)
+                import pprint
+                pprint.pprint(msg)
+                print type(msg)
+                print msg.sender
 
                 for l in self.message_listeners:
                     logging.error(l["regex"].pattern)
@@ -179,7 +192,7 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
                             and ((len(l['acl']) > 0 and self.message_is_allowed(msg, l['acl'])) or (len(l['acl']) == 0))
                     ):
                         try:
-                            logging.error("matched pattern")
+                            pprint.pprint(l)
                             thread_args = [msg, ] + l["args"]
 
                             def fn(listener, args, kwargs):
@@ -197,10 +210,13 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
                                             content = "@%s %s" % (msg.sender["nick"], content)
                                         self.send_room_message(msg.room["room_id"], content, color="red")
                                     elif msg['type'] in ('chat', 'normal'):
+                                        pprint.pprint(msg)
                                         self.send_direct_message(msg.sender["hipchat_id"], content)
 
                             thread = threading.Thread(target=fn, args=(l, thread_args, search_matches.groupdict()))
                             thread.start()
+                            if l["function_name"] == "conversate":
+                                return
                         except:
                             logging.critical(
                                 "Error running %s.  \n\n%s\nContinuing...\n" % (

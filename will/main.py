@@ -12,16 +12,14 @@ import traceback
 from clint.textui import colored, puts, indent
 from os.path import abspath, dirname
 from multiprocessing import Process, Queue
-
 import bottle
-
 from listener import WillXMPPClientMixin
 from mixins import ScheduleMixin, StorageMixin, ErrorMixin, HipChatMixin,\
     RoomMixin, PluginModulesLibraryMixin, EmailMixin
 from scheduler import Scheduler
 import settings
 from utils import show_valid, error, warn, print_head
-
+import json_log_formatter
 
 # Force UTF8
 if sys.version_info < (3, 0):
@@ -50,10 +48,15 @@ class WillBot(EmailMixin, WillXMPPClientMixin, StorageMixin, ScheduleMixin,
             warn("plugin_dirs is now depreciated")
 
         log_level = getattr(settings, 'LOGLEVEL', logging.ERROR)
-        logging.basicConfig(
-            level=log_level,
-            format='%(levelname)-8s %(message)s'
-        )
+        formatter = json_log_formatter.JSONFormatter()
+        json_handler = logging.FileHandler(filename = "./nana-log.json")
+        json_handler.setFormatter(formatter)
+        logger = logging.getLogger()
+        logger.addHandler(json_handler)
+        # logging.basicConfig(
+        #     level=log_level,
+        #     format='%(levelname)-8s %(message)s'
+        # )
 
         # Find all the PLUGINS modules
         plugins = settings.PLUGINS
@@ -99,8 +102,10 @@ class WillBot(EmailMixin, WillXMPPClientMixin, StorageMixin, ScheduleMixin,
         print_head()
         self.verify_environment()
         self.load_config()
-        self.verify_rooms()
+        #moving storage bootstrap before room bootstrap to use caching
         self.bootstrap_storage_mixin()
+        self.verify_rooms()
+
         self.bootstrap_plugins()
         self.verify_plugin_settings()
 
@@ -575,6 +580,7 @@ To set your %(name)s:
                                             elif "bottle_route" in meta:
                                                 # puts("- %s" % function_name)
                                                 self.bottle_routes.append((plugin_info["class"], function_name))
+
                                 except Exception, e:
                                     error(plugin_name)
                                     self.startup_error(

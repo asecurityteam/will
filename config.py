@@ -48,11 +48,8 @@ PLUGINS = [
     # Built-ins
     "will.plugins.admin",
     "will.plugins.chat_room",
-    "will.plugins.devops",
-    "will.plugins.friendly",
-    "will.plugins.fun",
     "will.plugins.help",
-    "will.plugins.productivity",
+    "will.plugins.nana_tools",
     "will.plugins.web",
 
     # All plugins in your project.

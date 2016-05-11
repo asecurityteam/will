@@ -3,6 +3,10 @@ import logging
 import requests
 import traceback
 
+from datetime import datetime
+from datetime import timedelta
+import logging
+
 from will import settings
 
 ROOM_NOTIFICATION_URL = "https://%(server)s/v2/room/%(room_id)s/notification?auth_token=%(token)s"
@@ -10,8 +14,9 @@ ROOM_TOPIC_URL = "https://%(server)s/v2/room/%(room_id)s/topic?auth_token=%(toke
 PRIVATE_MESSAGE_URL = "https://%(server)s/v2/user/%(user_id)s/message?auth_token=%(token)s"
 SET_TOPIC_URL = "https://%(server)s/v2/room/%(room_id)s/topic?auth_token=%(token)s"
 USER_DETAILS_URL = "https://%(server)s/v2/user/%(user_id)s?auth_token=%(token)s"
-ALL_USERS_URL = "https://%(server)s/v2/user?auth_token=%(token)s&start-index=%(start_index)s"
+ALL_USERS_URL = "https://%(server)s/v2/user?expand=items&auth_token=%(token)s&start-index=%(start_index)s"
 
+logger = logging.getLogger(__name__)
 
 class HipChatMixin(object):
 
@@ -86,23 +91,43 @@ class HipChatMixin(object):
         url = USER_DETAILS_URL % {"server": settings.HIPCHAT_SERVER,
                                   "user_id": user_id,
                                   "token": settings.V2_TOKEN}
+        timestamp = self.load("users:timestamp", None)
+        threshold = datetime.now()-timedelta(minutes=30)
+        if timestamp is not None and (timestamp>=threshold):
+            users = self.load("will_roster")
+            try:
+                u = users[user_id]
+                if q:
+                    q.put(u)
+                else:
+                    return u
+            except KeyError:
+                pass
         r = requests.get(url, **settings.REQUESTS_OPTIONS)
         if q:
             q.put(r.json())
         else:
             return r.json()
 
-    @property
-    def full_hipchat_user_list(self):
-        if not hasattr(self, "_full_hipchat_user_list"):
+    #@property
+    def full_hipchat_user_list(self,force=False):
+        timestamp = self.load("users:timestamp", None)
+        threshold = datetime.now()-timedelta(minutes=30)
+        if timestamp is not None and (timestamp>=threshold) and (force is False):
+            logging.info("Using cached user data")
+            self._full_hipchat_users_list = self.load("will_roster")
+        else:
             full_roster = {}
 
             # Grab the first roster page, and populate full_roster
             url = ALL_USERS_URL % {"server": settings.HIPCHAT_SERVER,
                                    "token": settings.V2_TOKEN,
-                                   "start_index": 0}
+                                   "start_index": 0,
+                                    "expand":"items"}
             r = requests.get(url, **settings.REQUESTS_OPTIONS)
             for user in r.json()['items']:
+                # dirty hack because api returns a different name now?
+                user['hipchat_id']=user['id']
                 full_roster["%s" % (user['id'],)] = user
 
             # Keep going through the next pages until we're out of pages.
@@ -111,7 +136,49 @@ class HipChatMixin(object):
                 r = requests.get(url, **settings.REQUESTS_OPTIONS)
 
                 for user in r.json()['items']:
+                    user['hipchat_id']=user['id']
                     full_roster["%s" % (user['id'],)] = user
 
-            self._full_hipchat_user_list = full_roster
-        return self._full_hipchat_user_list
+            self._full_hipchat_users_list = full_roster
+            self.save("will_roster", self._full_hipchat_users_list)
+            self.save("users:timestamp",datetime.now())
+        return self._full_hipchat_users_list
+
+    def map_hipchat_users(self,force=False):
+        timestamp = self.load("usermaps:timestamp",None)
+        threshold = datetime.now()-timedelta(minutes=30)
+        if timestamp is not None and (timestamp>=threshold) and (force is False):
+            logging.info("Using cached usermap data")
+            self._user_maps = self.storage.hgetall("user:transforms")
+            return
+        else:
+            user_list = self.full_hipchat_user_list(force)
+            for uid in user_list.keys():
+                updates = {}
+                user = user_list[uid]
+                updates['email'] = user.get('email', None)
+                updates['name'] = user.get('name', None)
+                updates['uid'] = user.get('id', None)
+                if updates['email']:
+                    try:
+                        updates['login_guess'] = updates['email'].split('@')[0]
+                    except ValueError:
+                        pass
+                for k in updates:
+                    self.storage.hset("user:transforms",updates[k],uid)
+            self.save("usermaps:timestamp",datetime.now())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

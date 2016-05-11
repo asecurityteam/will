@@ -1,4 +1,6 @@
 from datetime import datetime
+from datetime import timedelta
+import cPickle as pickle
 import logging
 import json
 
@@ -47,10 +49,13 @@ class Room(Bunch):
 
 
 class RoomMixin(object):
-    def update_available_rooms(self, q=None):
-        timestamp = self.storage.load("rooms:timestamp")
-        print "###############"
-        print timestamp
+    def update_available_rooms(self, q=None, force=False):
+        timestamp = self.load("rooms:timestamp")
+        threshold = datetime.now()-timedelta(minutes=15)
+        if (timestamp is not None) and (timestamp >= threshold) and (force is False):
+            logging.info("Using cached room data")
+            self._available_rooms = self.load("hipchat_rooms")
+            return
 
         self._available_rooms = {}
         params = {}
@@ -76,6 +81,8 @@ class RoomMixin(object):
         self.save("hipchat_rooms", self._available_rooms)
         if q:
             q.put(self._available_rooms)
+        timestamp = datetime.now()
+        self.save("rooms:timestamp",timestamp)
 
     @property
     def available_rooms(self):
