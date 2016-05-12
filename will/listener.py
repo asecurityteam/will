@@ -68,7 +68,6 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
 
 
     def join_rooms(self, event):
-        pprint.pprint(event)
         self.update_will_roster_and_rooms()
 
         for r in self.rooms:
@@ -79,7 +78,6 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
         internal_roster = self.full_hipchat_user_list()
         # Loop through the connected rooms
         for roster_id in self.roster:
-
             cur_roster = self.roster[roster_id]
             # Loop through the users in a given room
             for user_id in cur_roster:
@@ -136,8 +134,6 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
         one_on_one = False
 
         body = msg['body'].strip()
-        print dir(msg)
-
 
         if msg['type'] in ('chat', 'normal'):
             one_on_one = True
@@ -145,7 +141,6 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
                 body = body[len(self.handle) + 1:].strip()
                 msg["body"] = body
             msg.sender = self.get_user_from_message(msg)
-            print msg
 
 
 
@@ -171,10 +166,6 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
                 # Make the message object a bit friendlier
                 msg.room = self.get_room_from_message(msg)
                 msg.sender = self.get_user_from_message(msg)
-                import pprint
-                pprint.pprint(msg)
-                print type(msg)
-                print msg.sender
 
                 for l in self.message_listeners:
                     logging.error(l["regex"].pattern)
@@ -191,9 +182,7 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
                             # It's available only to the members of one or more ACLs, or no ACL in use
                             and ((len(l['acl']) > 0 and self.message_is_allowed(msg, l['acl'])) or (len(l['acl']) == 0))
                     ):
-                        try:
-                            pprint.pprint(l)
-                            thread_args = [msg, ] + l["args"]
+                        try:thread_args = [msg, ] + l["args"]
 
                             def fn(listener, args, kwargs):
                                 try:
@@ -210,7 +199,6 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
                                             content = "@%s %s" % (msg.sender["nick"], content)
                                         self.send_room_message(msg.room["room_id"], content, color="red")
                                     elif msg['type'] in ('chat', 'normal'):
-                                        pprint.pprint(msg)
                                         self.send_direct_message(msg.sender["hipchat_id"], content)
 
                             thread = threading.Thread(target=fn, args=(l, thread_args, search_matches.groupdict()))

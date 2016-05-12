@@ -19,7 +19,7 @@ from mixins import ScheduleMixin, StorageMixin, ErrorMixin, HipChatMixin,\
 from scheduler import Scheduler
 import settings
 from utils import show_valid, error, warn, print_head
-import json_log_formatter
+from atlas_logging import AtlasFormat
 
 # Force UTF8
 if sys.version_info < (3, 0):
@@ -48,7 +48,7 @@ class WillBot(EmailMixin, WillXMPPClientMixin, StorageMixin, ScheduleMixin,
             warn("plugin_dirs is now depreciated")
 
         log_level = getattr(settings, 'LOGLEVEL', logging.ERROR)
-        formatter = json_log_formatter.JSONFormatter()
+        formatter = AtlasFormat(hostname="nana-host", product="Nana Plus")
         json_handler = logging.FileHandler(filename = "./nana-log.json")
         json_handler.setFormatter(formatter)
         logger = logging.getLogger()
