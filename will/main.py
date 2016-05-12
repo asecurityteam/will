@@ -53,10 +53,6 @@ class WillBot(EmailMixin, WillXMPPClientMixin, StorageMixin, ScheduleMixin,
         json_handler.setFormatter(formatter)
         logger = logging.getLogger()
         logger.addHandler(json_handler)
-        # logging.basicConfig(
-        #     level=log_level,
-        #     format='%(levelname)-8s %(message)s'
-        # )
 
         # Find all the PLUGINS modules
         plugins = settings.PLUGINS

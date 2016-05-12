@@ -1,3 +1,4 @@
+import traceback
 import json_log_formatter
 from datetime import datetime
 
@@ -52,7 +53,14 @@ class AtlasFormat(json_log_formatter.JSONFormatter):
         results["action"]["action"] = extra.pop("action", None)
         results["action"]["status"] = extra.pop("status", None)
         results["action"]["result"] = extra.pop("result", None)
-        results["action"]["stack"] = record.exc_info
+        
+        if record.exc_info:
+            record.exc_info = ''.join(
+                traceback.format_exception(
+                    record.exc_info[0],record.exc_info[1],record.exc_info[2]
+                )
+            )
+            results["action"]["stack"] = record.exc_info
 
         for k,v in extra.iteritems():
             results["extra"][k]=v

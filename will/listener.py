@@ -182,8 +182,8 @@ class WillXMPPClientMixin(ClientXMPP, RosterMixin, RoomMixin, HipChatMixin):
                             # It's available only to the members of one or more ACLs, or no ACL in use
                             and ((len(l['acl']) > 0 and self.message_is_allowed(msg, l['acl'])) or (len(l['acl']) == 0))
                     ):
-                        try:thread_args = [msg, ] + l["args"]
-
+                        try:
+                            thread_args = [msg, ] + l["args"]
                             def fn(listener, args, kwargs):
                                 try:
                                     listener["fn"](*args, **kwargs)
