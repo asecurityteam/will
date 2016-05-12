@@ -2,6 +2,7 @@ import logging
 import hashlib
 import re
 import cPickle as pickle
+import requests
 from datetime import datetime
 from datetime import timedelta
 from will.plugin import WillPlugin
@@ -38,8 +39,12 @@ class NanaPlugin(WillPlugin):
 
     @route("/questions", method="POST")
     def question_set(self):
+        self._create_question(self.request.json)
+        return
+
+    def _create_question(self, question):
         self.bootstrap_storage()
-        valid, question, comment = self.validate_question(self.request.json)
+        valid, question, comment = self.validate_question(question)
         if not valid:
             logging.error(comment)
             return
@@ -54,8 +59,6 @@ class NanaPlugin(WillPlugin):
         m = hashlib.sha1()
         m.update(question['question'])
         question['questionID'] = m.hexdigest()
-        #log things (comment, extra = question)
-        #self.save(m.hexdigest(),question)
 
         qlist = self.unpickler(self.storage.hget("questions",uid),[])
         if qlist is None:
@@ -65,29 +68,35 @@ class NanaPlugin(WillPlugin):
         question['timestamp'] = datetime.now()
         question['escalate'] = question['timestamp'] + self.times[question['severity']]
 
-
-
-
         qlist.append(question)
         self.storage.hset("questions",uid,pickle.dumps(qlist))
 
-        return
-
-
-    # @route("/questions", method="GET")
-    # def question_list(self):
-    #     question_objects = {}
-    #     question_list = self.load("question_list")
-    #     for question_id in question_list:
-    #         question_objects[question_id] = self.load(question_id,{})
-
-
-    #     return question_objects
-
-    # @route("/questions/<question_id>")
-    # def question(self):
-    #     question = self.load(question_id,{})
-    #     return question
+    @route('/splunk_alert', method="POST")
+    def splunk_alert(self):
+        alert_data = self.request.json
+        session = requests.Session()
+        session.auth = ('admin', 'VjPdrDmA2znHRFneyquuRuE72FF=[')
+        session.verify = False
+        url = 'https://localhost:8089/services/search/jobs/%(sid)s/results' % alert_data
+        params = {
+            'output_mode': 'json',
+        }
+        response = session.get(url, params=params)
+        data = response.json()
+        if 'results' not in data:
+            # TODO: log error
+            raise ValueError('Invalid response: No results')
+        for result in data['results']:
+            field_map = {
+                'name': 'targetName',
+                'email': 'targetEmail',
+                'hipchat_uid': 'targetUID',
+                'username': 'targetID',
+            }
+            question = {}
+            for key, value in result.items():
+                question[field_map.get(key, key)] = value
+            self._create_question(question)
 
     @periodic(minute='*/5')
     def check_questions(self):
@@ -218,13 +227,9 @@ class NanaPlugin(WillPlugin):
             return_comment += " multipleChoice incorrect: %s." % multipleChoice
             multipleChoice = False
 
-        if (answers is None) or (type(answers) is not DictType):
+        if answers is None or not isinstance(answers, dict):
             return_comment += " setting answers to default from: %s." % answers
             answers = {"yes": True, "no": False}
-
-        if searchURL:
-            # look honestly url validation is too fiddly, just going to #believe
-            pass
 
         if fmt not in ["HTML","text"]:
             return_comment += " format incorrect: %s." % fmt
